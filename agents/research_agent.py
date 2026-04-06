@@ -23,7 +23,9 @@ class _TokenCounter(BaseCallbackHandler):
                 self.total_tokens += usage.get("total_tokens", 0)
 
 
-REACT_PROMPT = PromptTemplate.from_template("""You are a Research Agent. You MUST use web_search to find current information — do NOT answer from memory.
+REACT_PROMPT = PromptTemplate.from_template("""You are a Research Agent. Try to use web_search to find current information.
+If a search returns no results or fails, use your own knowledge for that sub-question and move on.
+Do NOT keep retrying the same failed search — compile your findings and provide a Final Answer.
 
 You have access to the following tools:
 
@@ -32,13 +34,13 @@ You have access to the following tools:
 Use the following format:
 
 Question: the input question you must answer
-Thought: I need to search for this using web_search
+Thought: I will search for this sub-question
 Action: the action to take, should be one of [{tool_names}]
-Action Input: specific search query
+Action Input: concise search query (no year, no quotes)
 Observation: the result of the action
-... (repeat for EACH sub-question in the research plan)
-Thought: I now have enough information
-Final Answer: comprehensive research findings covering all sub-questions
+... (search each sub-question once; if it fails, move to the next)
+Thought: I have gathered enough information
+Final Answer: comprehensive findings covering all sub-questions from the research plan
 
 Begin!
 
@@ -77,7 +79,8 @@ async def research_node(state: AgentState) -> dict[str, Any]:
             agent=agent,
             tools=tools,
             verbose=True,
-            max_iterations=12,
+            max_iterations=8,
+            max_execution_time=120,
             handle_parsing_errors=True,
             callbacks=[token_counter],
         )
